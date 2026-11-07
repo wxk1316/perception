@@ -1,0 +1,44 @@
+{
+  "repository": "AutowareFoundation/lidar_centerpoint",
+  "revision": "494c8171def40bd36cc2feb323e0a5acbfab132b",
+  "variant": "tiny",
+  "files": [
+    {
+      "file": "pts_voxel_encoder.onnx",
+      "url": "https://huggingface.co/AutowareFoundation/lidar_centerpoint/resolve/494c8171def40bd36cc2feb323e0a5acbfab132b/tiny/pts_voxel_encoder.onnx",
+      "bytes": 7429,
+      "sha256": "2c53465715c1fd2e9dc5727ef3fca74f4cdf0538f74286b0946e219d0ca5693b"
+    },
+    {
+      "file": "pts_backbone_neck_head.onnx",
+      "url": "https://huggingface.co/AutowareFoundation/lidar_centerpoint/resolve/494c8171def40bd36cc2feb323e0a5acbfab132b/tiny/pts_backbone_neck_head.onnx",
+      "bytes": 20140082,
+      "sha256": "9bb0b634f3664bd098ce7d6a3d8a9fb7cc8d9b8252b27f302c71e43316bab551"
+    },
+    {
+      "file": "ml_package.param.yaml",
+      "url": "https://huggingface.co/AutowareFoundation/lidar_centerpoint/resolve/494c8171def40bd36cc2feb323e0a5acbfab132b/tiny/ml_package.param.yaml",
+      "bytes": 1595,
+      "sha256": "d52a48d11f704b1ea7291fcb6219afecbd768602297bd1685f214f48b147877b"
+    },
+    {
+      "file": "detection_class_remapper.param.yaml",
+      "url": "https://huggingface.co/AutowareFoundation/lidar_centerpoint/resolve/494c8171def40bd36cc2feb323e0a5acbfab132b/tiny/detection_class_remapper.param.yaml",
+      "bytes": 2667,
+      "sha256": "c711f8875ece9b527dfe31ffc75f8c0de2e77945ef67860a959a4e04c36772d5"
+    },
+    {
+      "file": "README.md",
+      "url": "https://huggingface.co/AutowareFoundation/lidar_centerpoint/resolve/494c8171def40bd36cc2feb323e0a5acbfab132b/README.md",
+      "bytes": 8596,
+      "sha256": "3cbb8f0f196ef999d3406d88b0d349b808e3d826e2a02a3860dcce94762fc4cf"
+    },
+    {
+      "file": "LICENSE-2.0.txt",
+      "url": "https://www.apache.org/licenses/LICENSE-2.0.txt",
+      "bytes": 11358,
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+    }
+  ],
+  "license": "Apache-2.0; retain training-data terms in README.md"
+}

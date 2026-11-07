@@ -1,0 +1,94 @@
+# Independent perception configuration; localization and control are not configured here.
+# sensor_z is LiDAR -> localization-body extrinsic, body_height is its road height.
+# Initial 0.28m/0.17m values come from existing config, not a new calibration.
+# Update lidar_frame_ids and point_time_mode only from the actual driver fields.
+perception_tracking_node:
+  ros__parameters:
+    points_topic: "/rslidar_points"
+    odom_topic: "/localization"
+    obstacles_topic: "/rda/obstacles"
+    detections_topic: "/rda/perception/detections"
+    model_detections_topic: "/rda/perception/model_detections"
+    tracks_topic: "/rda/perception/tracks"
+    detection_markers_topic: "/rda/perception/detection_markers"
+    tracking_markers_topic: "/rda/perception/tracking_markers"
+    points_map_topic: "/rda/perception/points_map"
+    use_z_filter: true
+    rslidar_z_min: -0.3
+    rslidar_z_max: 1.5
+    vehicle_half_length: 0.6
+    vehicle_half_width: 0.4
+    vehicle_outside: 0.0
+    tile_size: 0.5
+    tile_extent_threshold: 2.0
+    tile_occupancy_threshold: 0.5
+    max_scene_tiles: 512
+    vehicle_center_x: 0.0
+    lidar_height: 0.45
+    pass_z_min: 0.15
+    pass_z_max: 1.95
+    sensor_x: 0.0
+    sensor_y: 0.0
+    sensor_yaw: 0.0
+    cloud_timeout: 0.5
+    pose_sync_tolerance: 0.15
+    track_lost_ttl_seconds: 0.6
+    max_obstacle_range: 12.0
+    pass_x_min: -12.0
+    pass_x_max: 12.0
+    pass_y_min: -12.0
+    pass_y_max: 12.0
+    body_to_base_link_x: 0.0
+    cluster_gate: 0.6
+    cluster_min_points: 2
+    cluster_max_radius: 30.0
+    track_dt: 0.1
+    track_gate: 0.8
+    track_lost_ttl: 10
+    kf_q: 0.3
+    kf_r: 0.12
+    motion_guard_enable: true
+    measurement_position_slack: 0.15 # metres; association/model guard assumption, validate with logs
+    velocity_innovation_limit: 0.5 # m/s; low-speed reversal becomes unknown until reconfirmed
+    velocity_reconfirm_time: 0.2 # seconds of compatible real source observations
+    obstacle_max_speed: 1.0
+    dyn_speed_thr: 0.12
+    dyn_hold_frames: 5
+    static_speed_thr: 0.06
+    static_hold_frames: 10
+    static_small_thr: 0.6
+    loc_timeout: 0.5
+    enhanced_association: true
+    mahalanobis_gate: 9.21 # squared 2D innovation gate; calibrate Q/R with campus logs
+    association_unmatched_cost: 0.45
+    dyn_confirm_seconds: 0.3
+    static_confirm_seconds: 1.2
+    motion_observation_window: 0.5 # source-time regression rejects centroid jitter at low speeds
+    pedestrian_max_speed: 0.6
+    vehicle_max_speed: 1.0
+    bicycle_max_speed: 1.0 # test assumption; independent from pedestrian bound
+    ground_enabled: true
+    ground_cell_size: 2.0
+    ground_min_points: 12
+    ground_max_fit_points: 256 # bound fitting cost; classify every retained source point
+    ground_distance: 0.025
+    ground_max_slope_deg: 15.0
+    ground_anchor_tolerance: 0.03 # installation height must be physically calibrated
+    sensor_roll: 0.0
+    sensor_pitch: 0.0
+    point_time_field: ""
+    point_time_mode: "auto" # only absolute timestamp seconds; configure relative units explicitly
+    point_time_header_is_end: true # used only for configured relative time
+    scan_period: 0.1
+    lidar_frame_ids: ["rslidar", "lidar", "laser"] # allow actual driver frame after verification
+    input_frame_type: "sensor"
+    input_deskewed: false # independent raw-cloud path; no FAST-LIO cloud publisher required
+    body_height: 0.17 # initial lidar_height 0.45 - FAST-LIO extrinsic_T.z 0.28; verify on vehicle
+    sensor_z: 0.28 # used only for raw sensor input; initialized from existing FAST-LIO config
+    centerpoint_reference_height: 1.8 # virtual model origin; keeps physical world coordinates invariant
+    pose_exact_tolerance: 0.005
+    centerpoint_enabled: true
+    centerpoint_backend: "tensorrt"
+    centerpoint_model_directory: "" # installed share/rda_dwa_real/models/centerpoint/base
+    centerpoint_score_threshold: 0.35
+    centerpoint_max_age: 0.25

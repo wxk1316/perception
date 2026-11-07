@@ -1,0 +1,38 @@
+{
+  "repository": "AutowareFoundation/lidar_centerpoint",
+  "revision": "494c8171def40bd36cc2feb323e0a5acbfab132b",
+  "variant": "base",
+  "files": [
+    {
+      "file": "pts_voxel_encoder.onnx",
+      "url": "https://huggingface.co/AutowareFoundation/lidar_centerpoint/resolve/494c8171def40bd36cc2feb323e0a5acbfab132b/base/pts_voxel_encoder.onnx",
+      "bytes": 7429,
+      "sha256": "dc1a876580d86ee7a341d543f8ade2ede7f43bd032dc5b44155b1f0175405764"
+    },
+    {
+      "file": "pts_backbone_neck_head.onnx",
+      "url": "https://huggingface.co/AutowareFoundation/lidar_centerpoint/resolve/494c8171def40bd36cc2feb323e0a5acbfab132b/base/pts_backbone_neck_head.onnx",
+      "bytes": 20140082,
+      "sha256": "3fe7e128955646740c41a25be0c8f141d5a94594fe79d7405fe2a859e391542e"
+    },
+    {
+      "file": "ml_package.param.yaml",
+      "url": "https://huggingface.co/AutowareFoundation/lidar_centerpoint/resolve/494c8171def40bd36cc2feb323e0a5acbfab132b/base/ml_package.param.yaml",
+      "bytes": 1595,
+      "sha256": "76f737ae242416fa59035b84cfbae966d1ef2a8c47556d7dea97e6fa8cdae444"
+    },
+    {
+      "file": "detection_class_remapper.param.yaml",
+      "url": "https://huggingface.co/AutowareFoundation/lidar_centerpoint/resolve/494c8171def40bd36cc2feb323e0a5acbfab132b/base/detection_class_remapper.param.yaml",
+      "bytes": 2667,
+      "sha256": "c711f8875ece9b527dfe31ffc75f8c0de2e77945ef67860a959a4e04c36772d5"
+    },
+    {
+      "file": "README.md",
+      "url": "https://huggingface.co/AutowareFoundation/lidar_centerpoint/resolve/494c8171def40bd36cc2feb323e0a5acbfab132b/README.md",
+      "bytes": 8596,
+      "sha256": "3cbb8f0f196ef999d3406d88b0d349b808e3d826e2a02a3860dcce94762fc4cf"
+    }
+  ],
+  "license": "Apache-2.0; retain training-data terms in README.md"
+}

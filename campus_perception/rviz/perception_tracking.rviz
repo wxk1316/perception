@@ -1,0 +1,81 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+  - Class: rviz_common/Views
+    Name: Views
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Class: rviz_default_plugins/Grid
+      Name: Map Grid
+      Enabled: true
+      Cell Size: 1
+      Plane Cell Count: 60
+      Reference Frame: map
+      Color: 100; 100; 100
+      Alpha: 0.3
+    - Class: rviz_default_plugins/PointCloud2
+      Name: Filtered Nonground Points
+      Enabled: true
+      Alpha: 0.8
+      Position Transformer: XYZ
+      Color Transformer: AxisColor
+      Axis: Z
+      Autocompute Value Bounds:
+        Value: true
+      Style: Points
+      Size (Pixels): 3
+      Size (m): 0.03
+      Decay Time: 0
+      Use Fixed Frame: true
+      Topic:
+        Value: /rda/perception/points_map
+        Depth: 1
+        Reliability Policy: Best Effort
+        Durability Policy: Volatile
+        History Policy: Keep Last
+    - Class: rviz_default_plugins/MarkerArray
+      Name: Current Detections - Blue Outlines
+      Enabled: true
+      Namespaces: {}
+      Topic:
+        Value: /rda/perception/detection_markers
+        Depth: 10
+        Reliability Policy: Reliable
+        Durability Policy: Volatile
+        History Policy: Keep Last
+    - Class: rviz_default_plugins/MarkerArray
+      Name: Tracks - ID and Velocity
+      Enabled: true
+      Namespaces: {}
+      Topic:
+        Value: /rda/perception/tracking_markers
+        Depth: 10
+        Reliability Policy: Reliable
+        Durability Policy: Volatile
+        History Policy: Keep Last
+  Enabled: true
+  Global Options:
+    Fixed Frame: map
+    Background Color: 35; 35; 35
+    Frame Rate: 20
+  Tools:
+    - Class: rviz_default_plugins/Interact
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Select
+    - Class: rviz_default_plugins/FocusCamera
+  Views:
+    Current:
+      Class: rviz_default_plugins/TopDownOrtho
+      Name: Current View
+      Target Frame: map
+      Scale: 30
+      Angle: 0
+      X: 0
+      Y: 0
+    Saved: ~
+Window Geometry:
+  Width: 1400
+  Height: 900
+  Hide Left Dock: false
+  Hide Right Dock: false

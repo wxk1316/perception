@@ -1,0 +1,101 @@
+{
+  "host": "macOS-26.6.2-arm64-arm-64bit",
+  "backend": "onnxruntime",
+  "vehicle_benchmark": false,
+  "accuracy_measured": false,
+  "synthetic_input_only": true,
+  "graphs": [
+    {
+      "file": "pts_voxel_encoder.onnx",
+      "checker": "passed",
+      "operators": [
+        "BatchNormalization",
+        "Concat",
+        "Constant",
+        "ConstantOfShape",
+        "Expand",
+        "Gather",
+        "MatMul",
+        "ReduceMax",
+        "Relu",
+        "Shape",
+        "Tile",
+        "Transpose",
+        "Unsqueeze"
+      ],
+      "inputs": {
+        "input_features": [
+          "num_voxels",
+          "num_max_points",
+          9
+        ]
+      }
+    },
+    {
+      "file": "pts_backbone_neck_head.onnx",
+      "checker": "passed",
+      "operators": [
+        "BatchNormalization",
+        "Concat",
+        "Conv",
+        "ConvTranspose",
+        "Relu"
+      ],
+      "inputs": {
+        "spatial_features": [
+          "batch_size",
+          32,
+          "H",
+          "W"
+        ]
+      }
+    }
+  ],
+  "load_seconds": 0.292966000008164,
+  "body_height": 0.17,
+  "model_reference_height": 1.8,
+  "inference": [
+    {
+      "points": 0,
+      "seconds": 0.24613841599784791,
+      "returned_boxes": 0,
+      "classes": [],
+      "output_finite": true
+    },
+    {
+      "points": 8500,
+      "seconds": 0.2565407500078436,
+      "returned_boxes": 1,
+      "classes": [
+        "pedestrian"
+      ],
+      "output_finite": true
+    }
+  ],
+  "geometry": {
+    "ground": 8000,
+    "nonground": 500,
+    "fitted_patches": 99,
+    "seconds": 0.011832416988909245,
+    "object_points_retained": 500,
+    "object_points_total": 500
+  },
+  "source_window_comparison": [
+    {
+      "observation_window": null,
+      "unknown_frames": 36,
+      "frames": 100,
+      "unique_ids": 1,
+      "noise_std_m": 0.025,
+      "true_speed_mps": 0.4
+    },
+    {
+      "observation_window": 0.5,
+      "unknown_frames": 1,
+      "frames": 100,
+      "unique_ids": 1,
+      "noise_std_m": 0.025,
+      "true_speed_mps": 0.4
+    }
+  ]
+}

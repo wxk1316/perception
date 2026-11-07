@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.DS_Store
+build/
+install/
+log/
+*.engine
+*.plan
+*.egg-info/
