@@ -34,6 +34,23 @@ Visualization Manager:
         Reliability Policy: Best Effort
         Durability Policy: Volatile
         History Policy: Keep Last
+    - Class: rviz_default_plugins/PointCloud2
+      Name: Fused Model Input - Includes Ground
+      Enabled: false
+      Alpha: 0.65
+      Position Transformer: XYZ
+      Color Transformer: AxisColor
+      Axis: Z
+      Style: Points
+      Size (Pixels): 2
+      Size (m): 0.03
+      Decay Time: 0
+      Topic:
+        Value: /rda/perception/fused_points_body
+        Depth: 1
+        Reliability Policy: Best Effort
+        Durability Policy: Volatile
+        History Policy: Keep Last
     - Class: rviz_default_plugins/MarkerArray
       Name: Current Detections - Blue Outlines
       Enabled: true

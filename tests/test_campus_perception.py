@@ -56,8 +56,8 @@ class CampusTrackingTests(unittest.TestCase):
         t = tracker()
         for i in range(10):
             out = t.step([(2+i*.09,1,'pedestrian',.3,.3,.9)],stamp=100+i*.1)[0]
-        self.assertEqual(out[5],'unknown')
-        self.assertEqual(out[3],0.)
+        self.assertEqual(out[5],'pedestrian')
+        self.assertLess(out[3],0.)
         self.assertFalse(t.tracks[1].velocity_trusted)
         self.assertAlmostEqual(out[1],2.81)
 
@@ -149,20 +149,20 @@ class CampusTrackingTests(unittest.TestCase):
         self.assertEqual(snapshot[5],'vehicle')
         # Includes the opposite-direction reachable position after an occlusion.
         self.assertLessEqual(snapshot[1]-snapshot[6]/2,2+.72-1.*.2-2.)
-        self.assertEqual(t.snapshot(101.3)[0][5],'unknown')
-        self.assertEqual(t.snapshot(101.3)[0][3],0.)
+        self.assertEqual(t.snapshot(101.3)[0][5],'vehicle')
+        self.assertLess(t.snapshot(101.3)[0][3],0.)
         self.assertEqual(t.snapshot(101.6),[])
 
     def test_low_speed_walking_with_centroid_noise_keeps_id_and_velocity(self):
         t = tracker();rng = np.random.default_rng(20261107)
-        ids,kinds = [],[]
+        ids,unknown_velocity = [],[]
         for i in range(100):
             point = np.array([2+i*.04,1])+rng.normal(0,.025,2)
             t.step([(*point,'pedestrian',.3,.3,.9)],stamp=100+i*.1)
             tid = t.last_detection_ids[0]
-            ids.append(tid);kinds.append(next(out[5] for out in t._output() if out[0]==tid))
+            ids.append(tid);unknown_velocity.append(next(out[3]<0 for out in t._output() if out[0]==tid))
         self.assertEqual(len(set(ids)),1)
-        self.assertLess(kinds[20:].count('unknown'),8)
+        self.assertLess(sum(unknown_velocity[20:]),8)
 
 
 class CampusCloudTests(unittest.TestCase):
@@ -268,7 +268,7 @@ class CampusCloudTests(unittest.TestCase):
         original=(MODEL_ID_OFFSET+1,2.,1.,.8,0.,'vehicle',4.,1.8)
         result=expand_publication_delay([original],.1,{original[0]:.2},SPEEDS)[0]
         self.assertEqual(result[1:3],original[1:3]) # source coordinate time is preserved
-        self.assertEqual(result[3:6],(0.,0.,'unknown'))
+        self.assertEqual(result[3:6],(-1.,0.,'vehicle'))
         self.assertGreaterEqual(result[6],4.+2*1.*.1)
 
 
@@ -303,7 +303,7 @@ class CampusModelTests(unittest.TestCase):
         outputs['vel'].fill(100)
         boxes = decode_predictions(outputs,self.params,100.,np.eye(4))
         self.assertEqual(len(boxes),1)
-        self.assertEqual(boxes[0]['class'],'vehicle')
+        self.assertEqual(boxes[0]['class'],'car')
         self.assertAlmostEqual(boxes[0]['x'],1.6,places=5)
         self.assertNotIn('speed',boxes[0])
 

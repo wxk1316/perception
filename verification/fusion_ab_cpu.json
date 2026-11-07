@@ -1,0 +1,228 @@
+{
+  "date": "2026-11-07",
+  "backend": "onnxruntime",
+  "synthetic_only": true,
+  "campus_accuracy_measured": false,
+  "vehicle_parallel_load_measured": false,
+  "geometry_uses_current_frame": true,
+  "model_classes": [
+    "car",
+    "truck",
+    "bus",
+    "bicycle",
+    "pedestrian"
+  ],
+  "actor_motion_per_scan_m": 0.06,
+  "ego_translation_per_scan_m": 0.04,
+  "nominal_source_interval_s": 0.1,
+  "cases": [
+    {
+      "input_radius": 12.0,
+      "fusion_enabled": false,
+      "point_counts": [
+        {
+          "current": 8154,
+          "history": 0
+        },
+        {
+          "current": 8158,
+          "history": 0
+        },
+        {
+          "current": 8158,
+          "history": 0
+        },
+        {
+          "current": 8154,
+          "history": 0
+        },
+        {
+          "current": 8154,
+          "history": 0
+        }
+      ],
+      "occupied_pillars": [
+        3206,
+        3204,
+        3202,
+        3204,
+        3206
+      ],
+      "preparation_median_seconds": 0.0002737079921644181,
+      "inference_median_seconds": 0.5534524579998106,
+      "inference_p95_seconds": 0.5921318329928908,
+      "synthetic_detections": [
+        {
+          "count": 1,
+          "classes": [
+            "pedestrian"
+          ]
+        },
+        {
+          "count": 1,
+          "classes": [
+            "pedestrian"
+          ]
+        },
+        {
+          "count": 1,
+          "classes": [
+            "pedestrian"
+          ]
+        },
+        {
+          "count": 1,
+          "classes": [
+            "pedestrian"
+          ]
+        },
+        {
+          "count": 1,
+          "classes": [
+            "pedestrian"
+          ]
+        }
+      ]
+    },
+    {
+      "input_radius": 5.0,
+      "fusion_enabled": false,
+      "point_counts": [
+        {
+          "current": 2174,
+          "history": 0
+        },
+        {
+          "current": 2174,
+          "history": 0
+        },
+        {
+          "current": 2172,
+          "history": 0
+        },
+        {
+          "current": 2172,
+          "history": 0
+        },
+        {
+          "current": 2168,
+          "history": 0
+        }
+      ],
+      "occupied_pillars": [
+        790,
+        792,
+        795,
+        796,
+        796
+      ],
+      "preparation_median_seconds": 0.00016679198597557843,
+      "inference_median_seconds": 0.5333084159938153,
+      "inference_p95_seconds": 0.535016958595952,
+      "synthetic_detections": [
+        {
+          "count": 1,
+          "classes": [
+            "pedestrian"
+          ]
+        },
+        {
+          "count": 1,
+          "classes": [
+            "pedestrian"
+          ]
+        },
+        {
+          "count": 0,
+          "classes": []
+        },
+        {
+          "count": 0,
+          "classes": []
+        },
+        {
+          "count": 0,
+          "classes": []
+        }
+      ]
+    },
+    {
+      "input_radius": 5.0,
+      "fusion_enabled": true,
+      "point_counts": [
+        {
+          "current": 2174,
+          "history": 2174
+        },
+        {
+          "current": 2174,
+          "history": 2174
+        },
+        {
+          "current": 2172,
+          "history": 2172
+        },
+        {
+          "current": 2172,
+          "history": 2172
+        },
+        {
+          "current": 2168,
+          "history": 2168
+        }
+      ],
+      "occupied_pillars": [
+        790,
+        792,
+        795,
+        796,
+        796
+      ],
+      "preparation_median_seconds": 0.0003859160060528666,
+      "inference_median_seconds": 0.5318541250017006,
+      "inference_p95_seconds": 0.5332359752093907,
+      "synthetic_detections": [
+        {
+          "count": 1,
+          "classes": [
+            "pedestrian"
+          ]
+        },
+        {
+          "count": 1,
+          "classes": [
+            "pedestrian"
+          ]
+        },
+        {
+          "count": 1,
+          "classes": [
+            "pedestrian"
+          ]
+        },
+        {
+          "count": 1,
+          "classes": [
+            "pedestrian"
+          ]
+        },
+        {
+          "count": 0,
+          "classes": []
+        }
+      ]
+    }
+  ],
+  "geometry_ground_filter": {
+    "ground": 1918,
+    "nonground": 250,
+    "fitted_patches": 32,
+    "input_points": 2168,
+    "retained_points": 250
+  },
+  "notes": [
+    "Detection counts on synthetic surfaces are not AP, recall, or ID metrics.",
+    "Point ROI changes occupied pillars; fixed model BEV/head size stays unchanged.",
+    "Source transforms align ego motion; moving actor history remains separated by its real displacement."
+  ]
+}

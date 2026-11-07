@@ -4,7 +4,7 @@ import time
 
 
 class ModelWorker:
-    def __init__(self,directory,backend='tensorrt',score_threshold=.35,max_range=12.,
+    def __init__(self,directory,backend='tensorrt',score_threshold=.35,max_range=5.,
                  enabled=True,model_factory=None):
         self.enabled = bool(enabled)
         self.executor = ThreadPoolExecutor(max_workers=1,thread_name_prefix='campus_model') if enabled else None
@@ -32,7 +32,8 @@ class ModelWorker:
         try:
             value = future.result()
             if value is not None:
-                self.boxes,duration,stamp = value
+                self.boxes,duration,stamp,metadata = value
+                self.stats.update(metadata)
                 self.stats.update(inference_seconds=duration,source_stamp=stamp)
             self.stats['status'] = 'ready'
             self.error = ''
@@ -40,23 +41,25 @@ class ModelWorker:
             self.error = f'{type(exc).__name__}: {exc}'
             self.stats['status'] = 'unavailable' if self.model is None else 'inference_failed'
 
-    def submit(self,xyz,stamp,world_transform):
+    def submit(self,xyz,stamp,world_transform,metadata=None):
         self.collect()
         if not self.enabled or self.model is None:
             return False
         if self.future is not None:
             self.stats['skipped_busy'] += 1
             return False
-        self.future = self.executor.submit(self._infer,xyz.copy(),stamp,world_transform.copy())
+        self.future = self.executor.submit(self._infer,xyz.copy(),stamp,world_transform.copy(),dict(metadata or {}))
         return True
 
-    def _infer(self,xyz,stamp,world_transform):
+    def _infer(self,xyz,stamp,world_transform,metadata):
         start = time.perf_counter()
         boxes = self.model.infer(xyz,stamp,world_transform)
-        return boxes,time.perf_counter()-start,stamp
+        return boxes,time.perf_counter()-start,stamp,metadata
 
-    def current_boxes(self,stamp,max_age=.25):
+    def current_boxes(self,stamp,max_age=.25,generation=None):
         self.collect()
+        if generation is not None and self.stats.get('fusion_generation',0) != generation:
+            return []
         return [box for box in self.boxes if 0<=stamp-box['stamp']<=max_age]
 
     def close(self):

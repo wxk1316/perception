@@ -12,6 +12,7 @@ perception_tracking_node:
     tracks_topic: "/rda/perception/tracks"
     detection_markers_topic: "/rda/perception/detection_markers"
     tracking_markers_topic: "/rda/perception/tracking_markers"
+    fused_points_topic: "/rda/perception/fused_points_body"
     points_map_topic: "/rda/perception/points_map"
     use_z_filter: true
     rslidar_z_min: -0.3
@@ -33,11 +34,11 @@ perception_tracking_node:
     cloud_timeout: 0.5
     pose_sync_tolerance: 0.15
     track_lost_ttl_seconds: 0.6
-    max_obstacle_range: 12.0
-    pass_x_min: -12.0
-    pass_x_max: 12.0
-    pass_y_min: -12.0
-    pass_y_max: 12.0
+    max_obstacle_range: 5.0
+    pass_x_min: -5.0
+    pass_x_max: 5.0
+    pass_y_min: -5.0
+    pass_y_max: 5.0
     body_to_base_link_x: 0.0
     cluster_gate: 0.6
     cluster_min_points: 2
@@ -89,6 +90,9 @@ perception_tracking_node:
     pose_exact_tolerance: 0.005
     centerpoint_enabled: true
     centerpoint_backend: "tensorrt"
-    centerpoint_model_directory: "" # installed share/rda_dwa_real/models/centerpoint/base
+    centerpoint_model_directory: "" # installed share/campus_perception/models/centerpoint/base
     centerpoint_score_threshold: 0.35
     centerpoint_max_age: 0.25
+    two_frame_fusion_enabled: true # model only; geometry uses current returns
+    fusion_max_age: 0.15 # 10Hz: reject a missing-frame gap, never fuse stale sweeps
+    model_input_range: 5.0 # optional context can be larger; obstacle outputs stay within 5m

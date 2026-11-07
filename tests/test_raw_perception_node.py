@@ -88,7 +88,7 @@ def test_raw_rear_low_obstacle_detection_tracks_and_map_cloud(adapters):
     assert detected.header.frame_id == tracked.header.frame_id == 'map'
     assert detected.obstacles[0].id == -1 and detected.obstacles[0].speed == -1.
     assert tracked.obstacles[0].id > 0
-    assert node._pub_obs.messages[-1] is tracked
+    assert node._pub_obs.messages[-1].obstacles[0].id == tracked.obstacles[0].id
     points = node._pub_points_map.messages[-1]
     xyz = np.frombuffer(points.data,dtype='<f4').reshape(-1,3)
     assert points.width == 2 and points.row_step == 24 and points.point_step == 12
@@ -225,3 +225,76 @@ def test_rviz_topics_qos_and_launch_match_standalone_module(adapters):
     assert "executable='perception_tracking_node'" in launch
     assert "executable='rviz2'" in launch
     assert "executable='bridge_node'" not in launch
+
+
+def test_default_five_meter_roi_and_full_labels_in_status(adapters):
+    node=node_at(adapters)
+    node._cb_cloud(cloud(points=((4.,1.,-.4),(4.,1.02,-.4),(6.,1.,-.4),(6.,1.02,-.4))))
+    assert len(node._pub_detections.messages[-1].obstacles)==1
+    xyz=np.frombuffer(node._pub_points_map.messages[-1].data,dtype='<f4').reshape(-1,3)
+    assert len(xyz)==2 and np.all(np.linalg.norm(xyz[:,:2],axis=1)<=5.)
+    status=json.loads(node._pub_perception_diag.messages[-1].data)
+    assert status['max_obstacle_range']==5.
+    assert set(status['model_classes'])=={'car','truck','bus','bicycle','pedestrian'}
+
+
+def test_raw_frame_fusion_is_independent_of_inference_and_geometry_is_current(adapters):
+    node=node_at(adapters)
+    for i in range(3):
+        t=1000+i*.1;now(node,t);node._cb_odom(odom(t))
+        node._cb_cloud(cloud(t,points=((2.+i*.06,1.,-.4),(2.+i*.06,1.02,-.4))))
+    fused=node._pub_fused_points.messages[-1]
+    xyzt=np.frombuffer(fused.data,dtype='<f4').reshape(-1,4)
+    assert fused.header.frame_id=='body' and len(xyzt)==4
+    np.testing.assert_allclose(xyzt[:,0],[2.12,2.12,2.06,2.06],atol=1e-6)
+    np.testing.assert_allclose(xyzt[:,3],[0.,0.,.1,.1],atol=1e-6)
+    assert node._pub_points_map.messages[-1].width==2
+    assert node._pub_detections.messages[-1].obstacles[0].x==pytest.approx(2.12)
+
+
+def test_runtime_fusion_off_drops_old_generation_and_has_zero_point_ages(adapters):
+    node=node_at(adapters);node._cb_cloud(cloud())
+    node._tracker.tracks[1].semantic_class='truck'
+    node.declared['two_frame_fusion_enabled']=False
+    node._model.stats['source_stamp']=1000.
+    node._model.boxes=[dict(x=2.,y=1.,yaw=0.,length=1.,width=1.,score=.9,stamp=1000.,**{'class':'bus'})]
+    now(node,1000.1);node._cb_odom(odom(1000.1));node._cb_cloud(cloud(1000.1))
+    xyzt=np.frombuffer(node._pub_fused_points.messages[-1].data,dtype='<f4').reshape(-1,4)
+    assert len(xyzt)==2 and not np.any(xyzt[:,3])
+    assert not node._model_tracker.tracks and node._fusion_generation==1
+    assert node._tracker.tracks[1].semantic_class=='unknown'
+
+
+def test_full_model_detection_and_planner_vehicle_mapping(adapters):
+    node=node_at(adapters)
+    for i in range(4):
+        t=1000+i*.1;now(node,t);node._cb_odom(odom(t))
+        node._model.stats['source_stamp']=t
+        node._model.boxes=[dict(x=2.,y=1.,yaw=0.,length=2.,width=1.,score=.9,stamp=t,**{'class':'truck'})]
+        node._cb_cloud(cloud(t,points=((2.,1.,-.4),(2.,1.02,-.4))))
+    assert node._pub_model_detections.messages[-1].obstacles[0].type=='truck'
+    assert node._pub_tracks.messages[-1].obstacles[0].type=='truck'
+    assert node._pub_obs.messages[-1].obstacles[0].type=='vehicle'
+
+
+@pytest.mark.parametrize('value,override',[('config',None),('true',True),('false',False)])
+def test_launch_preserves_yaml_fusion_switch_unless_explicitly_overridden(adapters,monkeypatch,value,override):
+    import types,importlib.util,sys
+    class Config:
+        def __init__(self,name):self.name=name
+        def perform(self,context):return context[self.name]
+    defs={
+        'launch':{'LaunchDescription':lambda x:x},
+        'launch.actions':{'DeclareLaunchArgument':lambda *a,**k:None,'OpaqueFunction':lambda **k:None},
+        'launch.conditions':{'IfCondition':lambda x:x},
+        'launch.substitutions':{'LaunchConfiguration':Config},
+        'launch_ros':{},'launch_ros.actions':{'Node':lambda **k:NS(**k)},
+        'launch_ros.parameter_descriptions':{'ParameterValue':lambda x,**k:x}}
+    for name,attrs in defs.items():
+        m=types.ModuleType(name);m.__dict__.update(attrs);monkeypatch.setitem(sys.modules,name,m)
+    path=ROOT/'campus_perception/launch/campus_perception.launch.py'
+    spec=importlib.util.spec_from_file_location('fusion_launch',path)
+    module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+    nodes=module._make_nodes({'two_frame_fusion':value})
+    changes=[p['two_frame_fusion_enabled'] for p in nodes[0].parameters if isinstance(p,dict) and 'two_frame_fusion_enabled' in p]
+    assert changes==([] if override is None else [override])

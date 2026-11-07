@@ -8,6 +8,7 @@ from __future__ import annotations
 import math
 from collections import deque
 import numpy as np
+from .semantics import ACTOR_CLASSES
 try:
     from scipy.optimize import linear_sum_assignment
     _HAS_SCIPY = True
@@ -51,7 +52,7 @@ class KFTrack:
         self.R = np.eye(2)*float(r)**2
         self.obs_type, self.length, self.width = obs_type, float(length), float(width)
         self.observed_length, self.observed_width = float(length), float(width)
-        self.semantic_class = obs_type if obs_type in ('pedestrian', 'vehicle', 'bicycle') else 'unknown'
+        self.semantic_class = obs_type if obs_type in ACTOR_CLASSES else 'unknown'
         self.semantic_score = 0.0
         self._pending_class,self._pending_class_hits = '',0
         self.hits, self.lifecycle = 1, 'tentative'
@@ -427,7 +428,7 @@ class GlobalKFTracker:
         tr.width = max(tr.width,float(det[4])+2*residual)
         tr.obs_type = det[2]
         tr.observed_length,tr.observed_width = float(det[3]),float(det[4])
-        if det[2] in ('pedestrian','vehicle','bicycle'):
+        if det[2] in ACTOR_CLASSES:
             score = float(det[5]) if len(det)>5 else 0.0
             if tr.semantic_class in ('unknown',det[2]):
                 tr.semantic_class = det[2]
@@ -466,7 +467,7 @@ class GlobalKFTracker:
             costs[row] = .65*position_cost+.20*(1-iou)+.15*size_cost
             if self.preserve_semantics and tr.semantic_class != 'unknown':
                 for column,det in enumerate(dets):
-                    if det[2] in ('pedestrian','vehicle','bicycle') and det[2] != tr.semantic_class:
+                    if det[2] in ACTOR_CLASSES and det[2] != tr.semantic_class:
                         costs[row,column] += .35
         return costs,allowed
 
@@ -518,5 +519,9 @@ class GlobalKFTracker:
             # so downstream refreshing the array cannot reset that uncertainty.
             unknown_rate = tr.max_speed+estimated_speed if not tr.velocity_trusted or tr.miss or extrapolation or stale_velocity else 0.0
             growth = (0.4+2*unknown_rate)*age
+            if self.preserve_semantics and tr.semantic_class != 'unknown':
+                otype = tr.semantic_class
+                if not tr.velocity_trusted or stale_velocity:
+                    speed,heading = -1.,0.
             result.append((tid,x,y,speed,heading,otype,tr.length+growth,tr.width+growth))
         return result

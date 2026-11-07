@@ -37,6 +37,8 @@ def expand_publication_delay(tracks,delay,measurement_ages,speed_limits,velocity
         rate = float(speed_limits.get(kind,max(speed_limits.values())))+max(float(speed),0.)+.2
         growth = 2*rate*delay
         if measurement_ages.get(tid,0.)+delay>velocity_max_age:
-            kind,speed,heading = 'unknown',0.,0.
+            speed,heading = -1.,0.
+            if kind in ('block','static_large'):
+                kind = 'unknown'
         result.append((tid,x,y,speed,heading,kind,length+growth,width+growth))
     return result

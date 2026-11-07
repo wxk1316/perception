@@ -14,6 +14,7 @@ import platform
 import numpy as np
 
 from .campus_cloud import transform_points
+from .temporal_cloud import rectangle_distance
 
 
 class CudaRuntime:
@@ -214,8 +215,8 @@ def box_iou(a,b):
     return float(overlap/(bounds[0][2]+bounds[1][2]-overlap+1e-9))
 
 
-def decode_predictions(outputs,params,stamp,world_transform,score_threshold=.35,max_range=12.):
-    """Decode the fixed five-class head into the three campus dynamic classes."""
+def decode_predictions(outputs,params,stamp,world_transform,score_threshold=.35,max_range=5.):
+    """Decode every directly trained label of the fixed five-class head."""
     expected = ('heatmap','reg','height','dim','rot','vel')
     if any(name not in outputs for name in expected):
         raise RuntimeError('Unexpected CenterPoint output names')
@@ -223,6 +224,8 @@ def decode_predictions(outputs,params,stamp,world_transform,score_threshold=.35,
     if any(not np.isfinite(value).all() for value in arrays.values()):
         raise RuntimeError('Nonfinite CenterPoint output')
     heat = arrays['heatmap']
+    if heat.shape[0] != len(params['class_names']):
+        raise RuntimeError('Head class count does not match model manifest')
     labels = np.argmax(heat,axis=0)
     scores = 1/(1+np.exp(-np.clip(np.max(heat,axis=0),-40,40)))
     yi,xi = np.where(scores>=score_threshold)
@@ -231,14 +234,11 @@ def decode_predictions(outputs,params,stamp,world_transform,score_threshold=.35,
     order = np.argsort(scores[yi,xi])[::-1][:300]
     yi,xi = yi[order],xi[order]
     factor = params['downsample_factor'];voxel = params['voxel_size'];lower = params['point_cloud_range']
-    mapping = {'CAR':'vehicle','TRUCK':'vehicle','BUS':'vehicle','BICYCLE':'bicycle','PEDESTRIAN':'pedestrian'}
     boxes = []
     for row,column in zip(yi,xi):
         kind = params['class_names'][labels[row,column]]
         x = (column+arrays['reg'][0,row,column])*voxel[0]*factor+lower[0]
         y = (row+arrays['reg'][1,row,column])*voxel[1]*factor+lower[1]
-        if np.hypot(x,y)>max_range:
-            continue
         width,length,height = np.exp(np.clip(arrays['dim'][:,row,column],-6,4))
         if not (.1<=width<=10 and .1<=length<=20 and .1<=height<=8):
             continue
@@ -246,6 +246,8 @@ def decode_predictions(outputs,params,stamp,world_transform,score_threshold=.35,
         if np.hypot(sine,cosine)<params.get('yaw_norm_thresholds',[0]*5)[labels[row,column]]:
             continue
         yaw = float(np.arctan2(sine,cosine))
+        if rectangle_distance(x,y,float(length),float(width),yaw=yaw) > max_range:
+            continue
         centre = transform_points(np.array([[x,y,arrays['height'][0,row,column]]]),world_transform)[0]
         # Project the box axes through the calibrated sensor rotation.
         axis = world_transform[:3,:3]@np.array([np.cos(yaw),np.sin(yaw),0])
@@ -263,7 +265,7 @@ def decode_predictions(outputs,params,stamp,world_transform,score_threshold=.35,
             length = 2*np.max(np.abs(cw*projected[:,0]+sw*projected[:,1]))
             width = 2*np.max(np.abs(-sw*projected[:,0]+cw*projected[:,1]))
         box = {'x':float(centre[0]),'y':float(centre[1]),'yaw':world_yaw,
-               'length':float(length),'width':float(width),'class':mapping[kind],
+               'length':float(length),'width':float(width),'class':kind.lower(),
                'score':float(scores[row,column]),'stamp':float(stamp)}
         # Class-aware centre + AABB suppression; geometry remains independent.
         duplicate = False
@@ -280,7 +282,7 @@ def decode_predictions(outputs,params,stamp,world_transform,score_threshold=.35,
 
 
 class CenterPointModel:
-    def __init__(self,directory,backend='tensorrt',allow_build=False,score_threshold=.35,max_range=12.):
+    def __init__(self,directory,backend='tensorrt',allow_build=False,score_threshold=.35,max_range=5.):
         import yaml
         directory = Path(directory).expanduser()
         lock = json.loads((directory/'bundle.lock.json').read_text())
@@ -302,24 +304,23 @@ class CenterPointModel:
         self.encoder = graph(directory/manifest['encoder_onnx_path'],allow_build=allow_build,encoder=True)
         self.head = graph(directory/manifest['head_onnx_path'],allow_build=allow_build,input_shape=self.spatial.shape)
         self.score_threshold,self.max_range = float(score_threshold),float(max_range)
-        self.previous = None
 
     def infer(self,xyz,stamp,world_transform):
-        xyz = np.asarray(xyz,dtype=np.float32)
-        samples = [np.column_stack((xyz,np.zeros(len(xyz),dtype=np.float32)))]
-        if self.previous is not None:
-            previous_xyz,previous_stamp,previous_transform = self.previous
-            age = stamp-previous_stamp
-            if 0<age<=.25:
-                history = transform_points(previous_xyz,np.linalg.inv(world_transform)@previous_transform)
-                samples.append(np.column_stack((history,np.full(len(history),age,dtype=np.float32))))
-        features,coords = pillar_features(np.concatenate(samples),self.params)
+        points = np.asarray(xyz,dtype=np.float32)
+        if points.ndim != 2 or points.shape[1] not in (3,4):
+            raise ValueError('Model expects XYZ or externally fused XYZT')
+        if points.shape[1] == 3:
+            points = np.column_stack((points,np.zeros(len(points),dtype=np.float32)))
+        if not np.isfinite(points).all() or np.any(points[:,3]<0):
+            raise ValueError('Invalid source age or model points')
+        # The ROS source cache provides the latest two frames. Never fuse again
+        # here: inference may skip raw frames while busy.
+        features,coords = pillar_features(points,self.params)
         pillar = self.encoder.infer(features)['pillar_features'].reshape(-1,32)
         self.spatial.fill(0)
         if len(coords):
             self.spatial.reshape(32,-1)[:,coords[:,1]*self.spatial.shape[3]+coords[:,0]] = pillar[:len(coords)].T
         outputs = self.head.infer(self.spatial)
-        self.previous = (xyz.copy(),float(stamp),world_transform.copy())
         return decode_predictions(outputs,self.params,stamp,world_transform,self.score_threshold,self.max_range)
 
     def close(self):

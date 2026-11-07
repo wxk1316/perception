@@ -44,6 +44,8 @@ from .campus_cloud import (decode_cloud,deskew_cloud,sensor_matrix,transform_poi
 from .campus_cloud import pose_matrix,interpolate_pose_matrix,model_frame_from_body
 from .campus_model_worker import ModelWorker
 from .campus_fusion import model_detections,fuse_coverage,expand_publication_delay,MODEL_ID_OFFSET
+from .semantics import MODEL_CLASSES, planner_obstacles
+from .temporal_cloud import TwoFrameCloudFusion, nearby_obstacles, nearby_boxes
 
 
 class PerceptionTrackingNode(Node):
@@ -63,6 +65,7 @@ class PerceptionTrackingNode(Node):
             'detection_markers_topic': '/rda/perception/detection_markers',
             'tracking_markers_topic': '/rda/perception/tracking_markers',
             'points_map_topic': '/rda/perception/points_map',
+            'fused_points_topic': '/rda/perception/fused_points_body',
         }
         for name, default in output_defaults.items():
             self.declare_parameter(name, default)
@@ -111,7 +114,7 @@ class PerceptionTrackingNode(Node):
         self.declare_parameter('static_small_thr', 0.6)    # 静态细分：长边≤此值 → block，否则 static_large
         # 定位超时（s）：超过则不刷新障碍（bridge 侧 localization_timeout 会急停）
         self.declare_parameter('loc_timeout', 0.5)
-        self.declare_parameter('max_obstacle_range', 12.0)  # full surround includes mode wait/recovery horizon
+        self.declare_parameter('max_obstacle_range', 5.0)  # full surround includes mode wait/recovery horizon
 
         self.declare_parameter('use_z_filter', True)
         self.declare_parameter('rslidar_z_min', -0.3)
@@ -146,6 +149,7 @@ class PerceptionTrackingNode(Node):
             'lidar_frame_ids':['rslidar','lidar','laser'],'input_frame_type':'sensor','input_deskewed':False,
             'body_height':.17,'sensor_z':.28,'centerpoint_reference_height':1.8,'pose_exact_tolerance':.005,
             'centerpoint_model_directory':'','centerpoint_score_threshold':.35,'centerpoint_max_age':.25,
+            'two_frame_fusion_enabled':True,'fusion_max_age':.15,'model_input_range':5.0,
         }
         for name,value in campus_defaults.items():
             self.declare_parameter(name,value)
@@ -158,6 +162,11 @@ class PerceptionTrackingNode(Node):
         if not 0<=self._campus['body_height']<=2.0 or any(self._campus[name]<=0 for name in
             ('centerpoint_reference_height','pose_exact_tolerance','scan_period')):
             raise ValueError('Invalid perception height or source timing')
+        self._cloud_fusion = TwoFrameCloudFusion(float(self._campus['fusion_max_age']))
+        self._fusion_generation = 0
+        self._fusion_enabled = bool(self._campus['two_frame_fusion_enabled'])
+        if not math.isfinite(float(self._campus['model_input_range'])) or self._campus['model_input_range'] <= 0:
+            raise ValueError('Invalid model input range')
         self._pending_cloud = None
         self._points_topic = str(self.get_parameter('points_topic').value)
         self._odom_topic = str(self.get_parameter('odom_topic').value)
@@ -225,7 +234,7 @@ class PerceptionTrackingNode(Node):
             unmatched_cost=float(self._campus['association_unmatched_cost']),
             dyn_confirm_seconds=float(self._campus['dyn_confirm_seconds']),
             static_confirm_seconds=float(self._campus['static_confirm_seconds']),
-            class_speed_limits={kind:float(self._campus[kind+'_max_speed']) for kind in ('pedestrian','vehicle','bicycle')},
+            class_speed_limits={kind:float(self._campus['pedestrian_max_speed' if kind=='pedestrian' else 'bicycle_max_speed' if kind=='bicycle' else 'vehicle_max_speed']) for kind in (*MODEL_CLASSES,'vehicle')},
             preserve_semantics=True,
             motion_observation_window=float(self._campus['motion_observation_window']),
             velocity_max_age=float(self._campus['centerpoint_max_age']),
@@ -296,7 +305,9 @@ class PerceptionTrackingNode(Node):
                 ObstacleArray, self._output_topics['detections_topic'], 10)
             self._pub_model_detections = self.create_publisher(
                 ObstacleArray, self._output_topics['model_detections_topic'], 10)
-            # A configured alias must not cause duplicate publications to the planner.
+            if self._output_topics['tracks_topic'] == self._obstacles_topic:
+                raise ValueError('tracks_topic must differ from the legacy planner topic')
+            # The legacy planner and full-class inspection messages are separate.
             self._pub_tracks = (self._pub_obs if self._output_topics['tracks_topic'] == self._obstacles_topic
                 else self.create_publisher(ObstacleArray, self._output_topics['tracks_topic'], 10))
         else:
@@ -312,6 +323,7 @@ class PerceptionTrackingNode(Node):
             MarkerArray, self._output_topics['tracking_markers_topic'], 10)
         self._pub_points_map = self.create_publisher(
             PointCloud2, self._output_topics['points_map_topic'], qos)
+        self._pub_fused_points = self.create_publisher(PointCloud2,self._output_topics['fused_points_topic'],qos)
         self._pub_perception_diag = self.create_publisher(String,'/rda/perception_status',10)
 
         self.get_logger().info(
@@ -362,6 +374,8 @@ class PerceptionTrackingNode(Node):
             return
         if self._last_cloud_stamp is not None and stamp <= self._last_cloud_stamp:
             return
+        if self._cloud_fusion.previous is not None and stamp <= self._cloud_fusion.previous[1]:
+            return
         if msg.header.frame_id.lstrip('/') not in self._campus['lidar_frame_ids']:
             return
         pose_times = [item[0] for item in self._pose_buffer.poses]
@@ -410,17 +424,30 @@ class PerceptionTrackingNode(Node):
             obstacle_body = body_points[selected]
         else:
             selected = crop
-            if self._lidar_filter_cfg['use_z_filter']:
-                selected = selected&(base_points[:,2]>=self._pass_zmin)
+            # A ground-off comparison keeps road points; no hidden 15cm gate.
             obstacle_body = body_points[selected]
         rx,ry,_ = pose
         # World-fixed voxel and tile grids are essential: rotating the ego frame
         # must not alter static geometry centers or create apparent wall speed.
         world_xyz = transform_points(obstacle_body,world_base)
         world_points = world_xyz[:,:2]
-        boxes = self._model.current_boxes(stamp,float(self._campus['centerpoint_max_age']))
+        enabled = bool(self.get_parameter('two_frame_fusion_enabled').value)
+        if enabled != self._fusion_enabled:
+            self._fusion_enabled = enabled
+            self._fusion_generation += 1
+            self._model_tracker.reset()
+            self._consumed_model_stamp = None
+            # Discard semantic evidence from the other A/B condition, while
+            # preserving genuine current geometry motion and occupancy IDs.
+            for track in self._tracker.tracks.values():
+                track.semantic_class,track.semantic_score = 'unknown',0.
+                track._pending_class,track._pending_class_hits = '',0
+                track.max_speed = self._tracker.max_speed
+        boxes = self._model.current_boxes(stamp,float(self._campus['centerpoint_max_age']),generation=self._fusion_generation)
+        boxes = nearby_boxes(boxes,(rx,ry),self._max_range)
         model_stamp = self._model.stats.get('source_stamp')
         new_model_source = (model_stamp is not None and 0<=stamp-model_stamp<=self._campus['centerpoint_max_age']
+            and self._model.stats.get('fusion_generation',0)==self._fusion_generation
             and (self._consumed_model_stamp is None or model_stamp>self._consumed_model_stamp))
         if new_model_source:
             self._model_tracker.step(model_detections(boxes),stamp=model_stamp,now=model_stamp)
@@ -431,11 +458,24 @@ class PerceptionTrackingNode(Node):
         world_clusters = semantic_clusters(world_points,boxes,self._clusterer,stamp,
             max_age=self._campus['centerpoint_max_age'],min_points=self._clusterer.min_points,
             speed_limits=self._tracker.class_speed_limits,origin=(rx,ry))
-        # Detector receives 3D points before ground/height deletion and 2D projection.
-        model_keep = (~self_mask)&(radius<=min(32.,self._clusterer.max_radius))
-        model_points,model_world = model_frame_from_body(body_points[model_keep],world_base,
+        # The model retains road points and sees the latest two accepted raw
+        # frames. Geometric occupancy uses current returns to avoid actor ghosts.
+        model_source = body_points[~self_mask]
+        fused_body = self._cloud_fusion.fuse(model_source,stamp,world_base,
+            enabled=enabled,radius=float(self._campus['model_input_range']))
+        fusion_self = ((np.abs(fused_body[:,0]-self._lidar_filter_cfg['vehicle_center_x'])<=self._veh_hl)&
+                       (np.abs(fused_body[:,1])<=self._veh_hw))
+        fused_body = fused_body[~fusion_self]
+        self._cloud_fusion.stats['current_points'] = int(np.count_nonzero(fused_body[:,3]==0))
+        self._cloud_fusion.stats['history_points'] = int(np.count_nonzero(fused_body[:,3]>0))
+        model_xyz,model_world = model_frame_from_body(fused_body[:,:3],world_base,
             body_height=self._campus['body_height'],reference_height=self._campus['centerpoint_reference_height'])
-        self._model.submit(model_points,stamp,model_world)
+        model_xyzt = np.column_stack((model_xyz,fused_body[:,3]))
+        self._model.submit(model_xyzt,stamp,model_world,metadata={
+            'fusion_generation':self._fusion_generation,'input_fusion_enabled':enabled,
+            'input_current_points':self._cloud_fusion.stats['current_points'],
+            'input_history_points':self._cloud_fusion.stats['history_points'],
+            'input_previous_source_stamp':self._cloud_fusion.stats['previous_source_stamp']})
         try:
             tracks = self._representer.step(world_clusters,stamp,reference_origin=(rx,ry),vehicle_pose=pose)
         except RepresentationLimitError as exc:
@@ -457,12 +497,16 @@ class PerceptionTrackingNode(Node):
         measurement_ages.update({MODEL_ID_OFFSET+tid:stamp-tr.last_seen for tid,tr in self._model_tracker.tracks.items()})
         tracks = expand_publication_delay(tracks,publication_delay,measurement_ages,
             self._tracker.class_speed_limits,self._tracker.velocity_max_age)
+        tracks = nearby_obstacles(tracks,(rx,ry),self._max_range)
         self._last_cloud_stamp = stamp
         # Current raw detections have no cross-frame identity or measured velocity.
-        detections = self._geometry_detections(world_clusters)
+        detections = nearby_obstacles(self._geometry_detections(world_clusters),(rx,ry),self._max_range)
         self._pub_detections.publish(self._obstacle_array(detections, msg.header.stamp))
         self._pub_detection_markers.publish(self._markers(detections, msg.header.stamp, detected=True))
         self._pub_points_map.publish(self._point_cloud(world_xyz, msg.header.stamp))
+        # This cloud is explicitly in the current body frame and contains age.
+        # RViz can use the existing map->body TF; points_map needs no new TF.
+        self._pub_fused_points.publish(self._fused_cloud(fused_body,msg.header.stamp))
         if new_model_source:
             # Neural output is asynchronous. Never relabel it with this cloud's time.
             model_time = type(msg.header.stamp)()
@@ -481,6 +525,9 @@ class PerceptionTrackingNode(Node):
             'input_frame_type':self._campus['input_frame_type'],
             'raw_point_count':len(cloud.xyz),'nonground_point_count':len(world_xyz),
             'detection_count':len(detections),'track_count':len(tracks),
+            'model_classes':list(MODEL_CLASSES),'max_obstacle_range':self._max_range,
+            'model_input_range':self._campus['model_input_range'],'fusion':dict(self._cloud_fusion.stats),
+            'geometry_source':'current_frame_only',
             'ground':self._ground.stats,'model':dict(self._model.stats),'model_error':self._model.error,
             'model_result_age_seconds':stamp-self._model.stats['source_stamp'] if 'source_stamp' in self._model.stats else None,
             'model_regions_used':len(boxes),'association':self._tracker.stats,
@@ -544,6 +591,18 @@ class PerceptionTrackingNode(Node):
         msg.data = points.tobytes(order='C')
         return msg
 
+    @staticmethod
+    def _fused_cloud(xyzt, source_stamp):
+        points = np.asarray(xyzt,dtype='<f4').reshape(-1,4)
+        msg = PointCloud2()
+        msg.header.stamp,msg.header.frame_id = source_stamp,'body'
+        msg.height,msg.width = 1,len(points)
+        msg.fields = [PointField(name=name,offset=4*i,datatype=PointField.FLOAT32,count=1)
+                      for i,name in enumerate(('x','y','z','time_lag'))]
+        msg.is_bigendian,msg.is_dense = False,True
+        msg.point_step,msg.row_step,msg.data = 16,16*len(points),points.tobytes()
+        return msg
+
     def _markers(self, items, source_stamp, detected=False):
         """Detection outlines, tracked footprints, labels and trusted velocity arrows.
 
@@ -593,7 +652,7 @@ class PerceptionTrackingNode(Node):
             label.scale.z = .18 if detected else .25
             label.color.r, label.color.g, label.color.b, label.color.a = 1., 1., 1., 1.
             label.text = (f'det:{index} {kind}' if detected else
-                          f'id:{tid} {kind}  v:{speed:.2f}m/s')
+                          f'id:{tid} {kind}  v:'+('unknown' if speed<0 else f'{speed:.2f}m/s'))
             markers.markers.append(label)
             if not detected and kind != 'unknown' and speed > .06:
                 arrow = marker(mid, prefix+'_velocity', Marker.ARROW)
@@ -608,7 +667,7 @@ class PerceptionTrackingNode(Node):
     def _publish_obstacles(self, tracks, source_stamp):
         """Identical tracked messages feed inspection and the existing planner."""
         msg = self._obstacle_array(tracks, source_stamp)
-        self._pub_obs.publish(msg)
+        self._pub_obs.publish(self._obstacle_array(planner_obstacles(tracks),source_stamp))
         if self._pub_tracks is not self._pub_obs:
             self._pub_tracks.publish(msg)
         markers = self._markers(tracks, source_stamp)

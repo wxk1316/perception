@@ -22,7 +22,7 @@ def main():
     parser.add_argument('--output',type=Path,required=True)
     args = parser.parse_args()
     result = {'host':platform.platform(),'backend':args.backend,'vehicle_benchmark':False,
-              'accuracy_measured':False,'synthetic_input_only':True,'graphs':[]}
+              'accuracy_measured':False,'synthetic_input_only':True,'graphs':[],'fusion_enabled':False}
     if args.backend=='onnxruntime':
         import onnx
         for name in ('pts_voxel_encoder.onnx','pts_backbone_neck_head.onnx'):
@@ -33,6 +33,7 @@ def main():
                           for value in graph.graph.input}})
     start = time.perf_counter()
     model = CenterPointModel(args.model_directory,backend=args.backend)
+    result['model_classes'] = [name.lower() for name in model.params['class_names']]
     result['load_seconds'] = time.perf_counter()-start
     x,y = np.meshgrid(np.linspace(-10,10,100),np.linspace(-8,8,80))
     road = np.column_stack((x.ravel(),y.ravel(),np.full(x.size,-.45))).astype(np.float32)
@@ -66,7 +67,7 @@ def main():
             t.step([(*point,'pedestrian',.3,.3,.9)],stamp=100+i*.1)
             tid=t.last_detection_ids[0];identities.add(tid)
             out=next(value for value in t._output() if value[0]==tid)
-            unknown += out[5]=='unknown'
+            unknown += out[5]=='unknown' or out[3]<0
         noise_results.append({'observation_window':window,'unknown_frames':unknown,'frames':100,
                               'unique_ids':len(identities),'noise_std_m':.025,'true_speed_mps':.4})
     result['source_window_comparison'] = noise_results

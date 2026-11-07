@@ -1,6 +1,6 @@
 # 编译、安装与启动
 
-日期：2026-11-07。仓库：<https://github.com/wxk1316/perception>。
+日期：2026-11-07；版本0.2.0。仓库：<https://github.com/wxk1316/perception>。
 
 ## 1. 工作区与依赖
 
@@ -41,7 +41,7 @@ colcon build --packages-select rda_dwa_real_msgs
 source install/setup.bash
 ```
 
-使用原消息定义。不要在 overlay 另装一份与原车机不同的同名消息包。本模块同时支持基础字段版与含 `has_shape_heading/shape_heading` 的扩展版：扩展版主动发布 `has_shape_heading=true, shape_heading=0`，明确 length/width 是 map AABB，heading 是运动方向。
+使用原消息定义。不要在 overlay 另装一份与原车机不同的同名消息包。本模块同时支持基础字段版与含 `has_shape_heading/shape_heading` 的扩展版：扩展版主动发布 `has_shape_heading=true, shape_heading=0`，明确 length/width 是 map AABB，heading 是运动方向。全类别 /rda/perception/tracks 与兼容 /rda/obstacles 是不同消息，不应将两者配置为同一话题。
 
 ## 3. 获取源码并编译
 
@@ -108,7 +108,7 @@ cp "$SHARE_DIR/config/perception_tracking.yaml" "$CONFIG_FILE"
 
 编辑该文件，顶层节点名保持 `perception_tracking_node`。核对 `points_topic`、`lidar_frame_ids`、`odom_topic`、LiDAR→定位 body 外参、body 离地高度和逐点时间约定。
 
-默认原始 `/rslidar_points`、sensor 输入、未声称上游去畸变；frame 允许 rslidar/lidar/laser。`sensor_z=0.28m`、`body_height=0.17m` 是原配置初值，并非本轮独立物理测量。`point_time_mode=auto` 只接受与 header 同时间域的绝对 timestamp 秒；相对 time/t 必须配置单位及首/末点约定。详见使用文档。
+默认原始 `/rslidar_points`、sensor 输入、未声称上游去畸变；frame 允许 rslidar/lidar/laser。`max_obstacle_range=5.0`、`model_input_range=5.0` 为本版默认范围；`sensor_z=0.28m`、`body_height=0.17m` 是原配置初值，并非本轮独立物理测量。`point_time_mode=auto` 只接受与 header 同时间域的绝对 timestamp 秒；相对 time/t 必须配置单位及首/末点约定。详见使用文档。
 
 ## 6. 启动与 RViz
 
@@ -163,3 +163,34 @@ ros2 launch campus_perception campus_perception.launch.py \
 | localization jump latched | 感知拒绝不连续位姿，确认地图/定位后重启感知；不会改动定位算法 |
 
 本机没有 Orin/ROS DDS/RViz 图形运行环境，源码与离线测试通过不表示已完成真实车机 build 或10Hz验收。实车验证指标见使用文档。
+
+## 9. 从0.1.0升级与对比开关
+
+源码更新后重新编译独立包。本版不修改ONNX或TensorRT输入profile，原本机兼容engine可继续使用。用户目录中的旧YAML不会自动覆盖，需要手动更新：
+
+```yaml
+max_obstacle_range: 5.0
+model_input_range: 5.0
+pass_x_min: -5.0
+pass_x_max: 5.0
+pass_y_min: -5.0
+pass_y_max: 5.0
+two_frame_fusion_enabled: true
+fusion_max_age: 0.15
+```
+
+融合默认由YAML决定，也可在launch中显式覆盖：
+
+```bash
+ros2 launch campus_perception campus_perception.launch.py config:="$CONFIG_FILE" two_frame_fusion:=false with_rviz:=true
+ros2 launch campus_perception campus_perception.launch.py config:="$CONFIG_FILE" two_frame_fusion:=true with_rviz:=true
+```
+
+分别执行两次实验，保持同一rosbag、同一参数和时钟。运行中也可切换：
+
+```bash
+ros2 param set /perception_tracking_node two_frame_fusion_enabled false
+ros2 param set /perception_tracking_node two_frame_fusion_enabled true
+```
+
+切换后缓存隔离，并拒绝旧融合条件的在途模型结果；模型轨迹会重新建立。测量对比时优先重启节点、回放相同源序列，并排除启动/确认阶段。详细评估与预处理说明见 FUSION_AND_PREPROCESSING_zh.md。

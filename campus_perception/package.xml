@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <package format="3">
   <name>campus_perception</name>
-  <version>0.1.0</version>
+  <version>0.2.0</version>
   <description>Independent campus raw-LiDAR perception and source-time KF tracking.</description>
   <maintainer email="dev@campus-perception.local">Campus Perception contributors</maintainer>
   <license>MIT</license>

@@ -51,20 +51,28 @@
       }
     }
   ],
-  "load_seconds": 0.2930522920214571,
+  "fusion_enabled": false,
+  "model_classes": [
+    "car",
+    "truck",
+    "bus",
+    "bicycle",
+    "pedestrian"
+  ],
+  "load_seconds": 0.0683308329898864,
   "body_height": 0.17,
   "model_reference_height": 1.8,
   "inference": [
     {
       "points": 0,
-      "seconds": 0.7304738329839893,
+      "seconds": 0.9963339579990134,
       "returned_boxes": 0,
       "classes": [],
       "output_finite": true
     },
     {
       "points": 8500,
-      "seconds": 0.6180458340095356,
+      "seconds": 1.0743398750200868,
       "returned_boxes": 1,
       "classes": [
         "pedestrian"
@@ -76,7 +84,7 @@
     "ground": 8000,
     "nonground": 500,
     "fitted_patches": 99,
-    "seconds": 0.012266124977031723,
+    "seconds": 0.018915791995823383,
     "object_points_retained": 500,
     "object_points_total": 500
   },

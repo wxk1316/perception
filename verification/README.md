@@ -1,6 +1,6 @@
 # 独立包验证记录
 
-本独立包已迁移并运行47项离线测试，覆盖KF/匈牙利、合簇/交叉、速度与语义、源时间、地面、SE(3)补偿、模型特征/解码及ROS测试替身。包含扩展消息 shape_heading 与速度 heading 分离回归。
+本独立包已迁移并运行73项离线测试，覆盖KF/匈牙利、合簇/交叉、速度与语义、源时间、地面、SE(3)补偿、模型特征/解码及ROS测试替身。新增五类头输出、5m包围框边界、最近原始两帧缓存、SE(3)对齐、运行开关代际隔离及launch/YAML开关优先级。包含扩展消息 shape_heading 与速度 heading 分离回归。
 
 `pytest_results.xml` 是本独立包测试记录。`package_checks.json` 记录Python3.10语法、模型hash与wheel打包检查。base/tiny CPU合成模型探针见对应JSON。
 
@@ -27,3 +27,10 @@ python3 tools/validate_campus_model.py --backend tensorrt \
 ```
 
 预训练权重原始文件hash保存在每个变体的bundle.lock.json，源码/交付文件hash在仓库SOURCE_MANIFEST.json。
+
+
+fusion_ab_cpu.json 是 base 模型的三组配对合成探针：12m单帧、5m单帧、5m两帧。几何地面作用和点数统计一并记录；其CPU时延及合成框出现次数不是Orin FPS或校园精度。复现命令：
+
+```bash
+python3 tools/evaluate_fusion.py --repeats 5 --backend onnxruntime --output /tmp/fusion_ab.json
+```

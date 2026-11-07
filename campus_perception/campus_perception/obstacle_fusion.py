@@ -10,6 +10,7 @@ from __future__ import annotations
 import math
 from collections import defaultdict
 from typing import Optional
+from .semantics import ACTOR_CLASSES
 
 
 
@@ -297,7 +298,7 @@ class WorldObstacleRepresenter:
         if self.tracker.preserve_semantics:
             for di,det in enumerate(detections):
                 pid = self.tracker.last_detection_ids.get(di)
-                if pid is not None and self.tracker.tracks[pid].semantic_class in ('pedestrian','vehicle','bicycle'):
+                if pid is not None and self.tracker.tracks[pid].semantic_class in ACTOR_CLASSES:
                     groups[di] = [(None,det[0],det[1],det[3],det[4])]
         live = set(self.tracker.tracks)
         for pid in list(self._parts):
@@ -339,16 +340,17 @@ class WorldObstacleRepresenter:
                     kind = ('unknown' if stale else 'block' if parent.static_confirmed else
                             'pedestrian' if parent.velocity_trusted else 'unknown')
                     if self.tracker.preserve_semantics:
-                        kind = ('unknown' if stale else parent.semantic_class if parent.velocity_trusted and parent.semantic_class!='unknown'
-                                else 'block' if parent.static_confirmed else 'unknown')
+                        kind = (parent.semantic_class if parent.semantic_class!='unknown'
+                                else 'unknown' if stale else 'block' if parent.static_confirmed else 'unknown')
                 identity = (pid,key)
                 if identity not in self._ids:
                     self._ids[identity],self._next_id = self._next_id,self._next_id+1
                 age = max(stamp-seen,0.0)
-                unknown_rate = parent.max_speed+speed if kind=='unknown' or parent.miss else 0.0
+                motion_speed = max(speed,0.)
+                unknown_rate = parent.max_speed+motion_speed if kind=='unknown' or parent.miss or speed<0 else 0.0
                 growth = (0.4+2*unknown_rate)*age
-                output.append((self._ids[identity],cx+speed*math.cos(heading)*age,
-                               cy+speed*math.sin(heading)*age,speed,heading,
+                output.append((self._ids[identity],cx+motion_speed*math.cos(heading)*age,
+                               cy+motion_speed*math.sin(heading)*age,speed,heading,
                                kind,max(L+growth,.05),max(W+growth,.05)))
         self._last_stamp,self._last_output = stamp,list(output)
         return output
